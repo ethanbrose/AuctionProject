@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: GPL-3.0
+
+pragma solidity >=0.7.0 <0.9.0;
+
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+
+contract Auction {
+    
+    IERC721 public nft;
+    uint256 public nftId;
+    
+    address payable public seller;
+    uint256 public startPrice;
+    uint256 public buyNowPrice;
+    uint public endTime;
+    bool public hasStarted;
+    bool public hasEnded;
+    
+    address payable[] public highestBidders;
+    uint public highestBid;
+    uint256 public currentPrice;
+    
+    constructor() {
+        seller = payable(msg.sender);
+    }
+    
+    function increaseEndTime (uint256 timeToSet) public
+    {
+        endTime=timeToSet;
+    }
+    
+    function start(IERC721 _nft, uint256 _nftId, uint256 _startPrice, uint256 _buyNowPrice) public {
+        require(!hasStarted, "Already started");
+        require(msg.sender == seller, "Not seller");
+        require(_startPrice > 1, "Start price should be greater than 1");
+        require(_buyNowPrice > _startPrice, "Buy now must be greater than starting price");
+        
+        nft = IERC721(_nft);
+        nftId = _nftId;
+        
+        startPrice = _startPrice;
+        currentPrice = _startPrice;
+        buyNowPrice = _buyNowPrice;
+        
+        endTime = block.timestamp + (5 * 1 minutes);
+        hasStarted = true;
+    }
+    
+    modifier beforeEnd() {
+        require(block.timestamp < endTime, "This auction has ended");
+        _;
+    }
+    
+    modifier afterEnd() {
+        require(block.timestamp > endTime, "This auction has ended");
+        _;
+    }
+    
+    function bid(uint256 price) public beforeEnd {
+        require(price >= currentPrice, "The price is lower than the current price");
+        
+        if (price==currentPrice)
+        {
+            highestBidders.push(payable (msg.sender));
+        }
+        if (price > currentPrice)
+        {
+            delete highestBidders;
+            highestBidders.push(payable (msg.sender));
+            currentPrice = price;
+        }
+    }
+    
+    function random() private view returns(uint) {
+        uint randomNum = uint(keccak256(abi.encodePacked(block.timestamp, msg.sender)));
+        uint numWinners = highestBidders.length;
+        return (randomNum % numWinners)+1;
+    }
+    
+    function end() public { // payable afterEnd {
+       // address theWinner = highestBidders[random()];
+        nft.safeTransferFrom(address(this), msg.sender, nftId);
+      //  seller.transfer(currentPrice);
+    }
+}
